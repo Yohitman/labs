@@ -56,7 +56,7 @@
 не позволяли корректно запустить программу
 но в файле lab4.c была допущена критическая логическая ошибка:
 
-.. figure:: _static/1.png
+.. figure:: https://github.com/Yohitman/labs/blob/master/_static/1.PNG?raw=true
        :scale: 100 %
        :align: center
 
