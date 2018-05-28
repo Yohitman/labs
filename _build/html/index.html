@@ -6,7 +6,7 @@
   <head>
     <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    <title>Работа №4. Системные вызовы, процессы, компиляция программ &#8212; labs  documentation</title>
+    <title>Выполнение лабораторных работ по курсу “Операционные системы семйства GNU/Linux” &#8212; labs  documentation</title>
     <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     <script type="text/javascript" src="_static/documentation_options.js"></script>
@@ -15,6 +15,7 @@
     <script type="text/javascript" src="_static/doctools.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Работа №4. Системные вызовы, процессы, компиляция программ" href="lab4.html" />
    
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
   
@@ -29,125 +30,24 @@
         <div class="bodywrapper">
           <div class="body" role="main">
             
-  <div class="section" id="o4">
-<h1>Работа №4. Системные вызовы, процессы, компиляция программ<a class="headerlink" href="#o4" title="Permalink to this headline">¶</a></h1>
-<div class="section" id="id1">
-<h2>Цели<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h2>
-<ol class="arabic simple">
-<li>Приобретение навыков по управлению процессами.</li>
-<li>Изучение системного вызова fork().</li>
-<li>Приобретение навыков написания и трансляции системного ПО на языке C.</li>
-<li>Изучение утилиты make и её использование для трансляции программ на языке C.</li>
-<li>Использование удалённых серверов для трансляции приложений.</li>
-<li>Изучение Docker и базовое взаимодействие с ним</li>
-<li>Изучение способов представления информации помимо стандартных</li>
-</ol>
-</div>
-<div class="section" id="id2">
-<h2>Процесс<a class="headerlink" href="#id2" title="Permalink to this headline">¶</a></h2>
-<p>Для начала было необходимо выбрать основную платформу для Docker, 2 были предложены преподавателем – Alpine и RancherOS,
-и стандартная Ubuntu. В ходе апробации данных систем выяснилось, что, несмотря на своё удобство и компактность, предложенные системы
-не удовлетворяют требованиям, в силу своей же компактности, так как на обеих системах в стандартном пакете gcc не присутствуют
-статические библиотеки, а, следовательно, была выбрана старая добрая Ubuntu 16.04</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sudo</span> <span class="n">docker</span> <span class="n">run</span> <span class="o">-</span><span class="n">it</span> <span class="n">ubuntu</span><span class="p">:</span><span class="n">latest</span>
-</pre></div>
-</div>
-<p>Обновление установщика:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">apt</span><span class="o">-</span><span class="n">get</span> <span class="n">update</span>
-    <span class="n">apt</span><span class="o">-</span><span class="n">get</span> <span class="n">upgrade</span>
-</pre></div>
-</div>
-<p>Затем было необходимо поставить базовые программы:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">apt</span><span class="o">-</span><span class="n">get</span> <span class="n">install</span> <span class="n">nano</span>
-    <span class="n">apt</span><span class="o">-</span><span class="n">get</span> <span class="n">install</span> <span class="n">gcc</span>
-    <span class="n">apt</span><span class="o">-</span><span class="n">get</span> <span class="n">install</span> <span class="n">openssh</span>
-</pre></div>
-</div>
-<p>Создаем каталог work и переходим в него:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">mkdir</span> <span class="n">work</span>
-<span class="n">cd</span> <span class="n">work</span>
-</pre></div>
-</div>
-<p>Копируем файлы с удаленного сервера:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">scp</span> <span class="o">-</span><span class="n">r</span> <span class="o">-</span><span class="n">P</span> <span class="mi">6666</span> <span class="n">student</span><span class="nd">@openit</span><span class="o">.</span><span class="n">guap</span><span class="o">.</span><span class="n">ru</span><span class="p">:</span><span class="o">/</span><span class="n">container</span><span class="o">/</span><span class="n">ABC</span><span class="o">-</span><span class="n">Linux</span><span class="o">/</span><span class="n">lab4</span><span class="o">/*</span> <span class="n">work</span><span class="o">/</span>
-</pre></div>
-</div>
-<p>Далее мы начинаем работать уже с полученными файлами
-В большинстве файлов были допущены лишь незначительные ошибки типа пробелов вместо табуляции, которые, однако
-не позволяли корректно запустить программу
-но в файле lab4.c была допущена критическая логическая ошибка:</p>
-<div class="figure align-center" id="id4">
-<a class="reference internal image-reference" href="_images/1.png"><img alt="_images/1.png" src="_images/1.png" style="width: 208.0px; height: 140.0px;" /></a>
-<p class="caption"><span class="caption-text">Вот как неправильно</span></p>
-<div class="legend">
-<blockquote>
-<div>(слово ошибка намекает)</div></blockquote>
-</div>
-</div>
-<p>Она представляет собой моментальное сравнение системного вызова fork() с числом вместо сравнения переменной,
-которой присвоено значение этого вызова
-Эту ошибку можно и нужно исправить следующим образом:</p>
-<div class="figure align-center" id="id5">
-<a class="reference internal image-reference" href="_images/2.png"><img alt="_images/2.png" src="_images/2.png" style="width: 197.0px; height: 204.0px;" /></a>
-<p class="caption"><span class="caption-text">А вот так правильно</span></p>
-</div>
-<p>После исправления данных ошибок программа стала корректно работать во всем
-и выдавать правильные значения (<em>pid</em>, <em>ppid</em>) для дочернего и родительского процессов… кроме <em>ppid</em> дочернего процесса -
-он был как у родительского и равен 1, что, естественно, неправильно.
-Данная проблема была проанализирована, и были выведены следующие выводы:</p>
-<ol class="arabic simple">
-<li><em>pid</em> = 1 означает процесс <em>init</em>, 1й процесс системы</li>
-<li>раз <em>ppid</em> = 1, значит, у данного процесса нет родительского</li>
-<li>раз у данного процесса нет родительского, значит, родительский процесс завершается раньше дочернего</li>
-<li>раз родительский процесс завершается раньше дочернего, значит его необходимо задержать</li>
-</ol>
-<p>Было принято решение в родительском процессе использовать команду sleep():</p>
-<div class="figure align-center" id="id6">
-<a class="reference internal image-reference" href="_images/3.png"><img alt="_images/3.png" src="_images/3.png" style="width: 495.0px; height: 151.0px;" /></a>
-<p class="caption"><span class="caption-text">Решение проблемы <em>ppid</em> = 1</span></p>
-</div>
-<p>Итак, программа работает, осталось лишь собрать ее из нашего Makefile:</p>
-<div class="figure align-center" id="id7">
-<a class="reference internal image-reference" href="_images/4.png"><img alt="_images/4.png" src="_images/4.png" style="width: 366.0px; height: 340.0px;" /></a>
-<p class="caption"><span class="caption-text">Внешний вид Makefile</span></p>
-</div>
-<p>Мы делаем команды</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">make</span>
-
-<span class="n">make</span> <span class="n">install</span>
-
-<span class="n">make</span> <span class="n">clean</span>
-</pre></div>
-</div>
-<p>И запускаем нашу программу из папки bin:</p>
-<div class="figure align-center" id="id8">
-<a class="reference internal image-reference" href="_images/5.png"><img alt="_images/5.png" src="_images/5.png" style="width: 509.0px; height: 70.0px;" /></a>
-<p class="caption"><span class="caption-text">Вывод программы</span></p>
-</div>
-<p>Ну вот и всё, осталось лишь сохранить результаты, для этого переходим в другой терминал и сначала ищем наш рабочий контейнер:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">docker</span> <span class="n">ps</span>
-</pre></div>
-</div>
-<p>В колонке ContainerID имя нашего контейнера, вводим его в команде</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">docker</span> <span class="n">commit</span> <span class="o">*</span><span class="n">имя</span> <span class="n">нашего</span> <span class="n">контейнера</span><span class="o">*</span> <span class="o">*</span><span class="n">имя</span> <span class="n">каталога</span> <span class="n">куда</span><span class="o">*</span>
-</pre></div>
-</div>
-<p>Для меня данная команда выглядит так:</p>
-<div class="figure align-center" id="id9">
-<a class="reference internal image-reference" href="_images/6.png"><img alt="_images/6.png" src="_images/6.png" style="width: 803.0px; height: 138.0px;" /></a>
-<p class="caption"><span class="caption-text">Сохранение Docker-контейнера</span></p>
-</div>
-<p>Загрузить данный контейнер можно по команде:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">docker</span> <span class="n">run</span> <span class="n">konstantinov</span><span class="o">/</span><span class="n">abc</span><span class="o">-</span><span class="n">linux</span><span class="o">-</span><span class="mi">4</span><span class="o">-</span><span class="mi">1</span>
-</pre></div>
-</div>
-</div>
-<div class="section" id="id3">
-<h2>Выводы<a class="headerlink" href="#id3" title="Permalink to this headline">¶</a></h2>
-<p>Были исследованы процессы и системный вызов fork(), был рассмотрен процесс создания каталогов и программы, изучено взаимодействие
-с Docker, а также данный отчет был сделан при помощи средств удаленного документирования.</p>
+  <div class="section" id="gnu-linux">
+<h1>Выполнение лабораторных работ по курсу “Операционные системы семйства GNU/Linux”<a class="headerlink" href="#gnu-linux" title="Permalink to this headline">¶</a></h1>
 <div class="toctree-wrapper compound">
-</div>
+<p class="caption"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="lab4.html">Работа №4. Системные вызовы, процессы, компиляция программ</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="lab4.html#id1">Цели</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lab4.html#id2">Выполнение работы</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lab4.html#id3">Выводы</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="lab5.html">Работа №5. Переменные окружения и файловые операции.</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="lab5.html#id1">Цели</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lab5.html#id2">Выполнение</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lab5.html#id3">Выводы</a></li>
+</ul>
+</li>
+</ul>
 </div>
 </div>
 
@@ -156,20 +56,11 @@
         </div>
       </div>
       <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
-        <div class="sphinxsidebarwrapper">
-  <h3><a href="#">Table Of Contents</a></h3>
-  <ul>
-<li><a class="reference internal" href="#">Работа №4. Системные вызовы, процессы, компиляция программ</a><ul>
-<li><a class="reference internal" href="#id1">Цели</a></li>
-<li><a class="reference internal" href="#id2">Процесс</a></li>
-<li><a class="reference internal" href="#id3">Выводы</a></li>
-</ul>
-</li>
-</ul>
-<div class="relations">
+        <div class="sphinxsidebarwrapper"><div class="relations">
 <h3>Related Topics</h3>
 <ul>
   <li><a href="#">Documentation overview</a><ul>
+      <li>Next: <a href="lab4.html" title="next chapter">Работа №4. Системные вызовы, процессы, компиляция программ</a></li>
   </ul></li>
 </ul>
 </div>
