@@ -25,7 +25,7 @@
 
 Далее мы создаем Makefile по аналогии с предыдущей лабораторной:
 
-.. figure:: _static/2-1.png
+.. figure:: https://github.com/Yohitman/labs/blob/master/_static/2-1.PNG?raw=true
 	:scale: 100%
 	:align: center
 	
@@ -33,7 +33,7 @@
 
 По материалам методических указаний пишем наш собственный С-файл:
 
-.. figure:: _static/2-2.png
+.. figure:: https://github.com/Yohitman/labs/blob/master/_static/2-2.PNG?raw=true
 	:scale: 100%
 	:align: center
 	
@@ -41,7 +41,7 @@
 
 Проверяем работу без аргументов:
 
-.. figure:: _static/2-2.png
+.. figure:: https://github.com/Yohitman/labs/blob/master/_static/2-3.PNG?raw=true
 	:scale: 100%
 	:align: center
 	
