@@ -32,3 +32,4 @@ scp -r -P 6666 student@openit.guap.ru:/container/ABC-Linux/lab4/* work/
 docker ps
 docker commit /номер из ps/ /папка в докер хабе куда скидывать/
 
+номер договора 91660
