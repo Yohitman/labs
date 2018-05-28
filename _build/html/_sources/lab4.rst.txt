@@ -56,7 +56,7 @@
 не позволяли корректно запустить программу
 но в файле lab4.c была допущена критическая логическая ошибка:
 
-.. figure:: _static/1.png
+.. figure:: https://github.com/Yohitman/labs/blob/master/_static/1.PNG?raw=true
        :scale: 100 %
        :align: center
 
@@ -68,7 +68,7 @@
 которой присвоено значение этого вызова
 Эту ошибку можно и нужно исправить следующим образом:
 
-.. figure:: _static/2.png
+.. figure:: https://github.com/Yohitman/labs/blob/master/_static/2.PNG?raw=true
        :scale: 100 %
        :align: center
 
@@ -87,7 +87,7 @@
 
 Было принято решение в родительском процессе использовать команду sleep():
 
-.. figure:: _static/3.png
+.. figure:: https://github.com/Yohitman/labs/blob/master/_static/3.PNG?raw=true
        :scale: 100 %
        :align: center
 
@@ -95,7 +95,7 @@
 
 Итак, программа работает, осталось лишь собрать ее из нашего Makefile:
 
-.. figure:: _static/4.png
+.. figure:: https://github.com/Yohitman/labs/blob/master/_static/4.PNG?raw=true
        :scale: 100 %
        :align: center
 
@@ -111,7 +111,7 @@
 		
 И запускаем нашу программу из папки bin:
 
-.. figure:: _static/5.png
+.. figure:: https://github.com/Yohitman/labs/blob/master/_static/5.PNG?raw=true
        :scale: 100 %
        :align: center
 
@@ -127,7 +127,7 @@
 
 Для меня данная команда выглядит так:
 
-.. figure:: _static/6.png
+.. figure:: https://github.com/Yohitman/labs/blob/master/_static/6.PNG?raw=true
        :scale: 100 %
        :align: center
 
