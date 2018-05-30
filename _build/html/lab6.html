@@ -1,0 +1,473 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Работа №6. Сообщения. Разделяемая память. Семафоры. &#8212; labs  documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript" src="_static/documentation_options.js"></script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Работа №5. Переменные окружения и файловые операции." href="lab5.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="o6">
+<h1>Работа №6. Сообщения. Разделяемая память. Семафоры.<a class="headerlink" href="#o6" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="id1">
+<h2>Цель работы<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h2>
+<p>Изучение системных вызовов для обмена данными между процессами.</p>
+</div>
+<div class="section" id="id2">
+<h2>Содержание  работы<a class="headerlink" href="#id2" title="Permalink to this headline">¶</a></h2>
+<ol class="arabic simple">
+<li>Запустить операционную систему.</li>
+<li>Войти в виртуальную машину, контейнер или на удалённый сервер приложений (IP адресом XX.XX.XX.254, пользователь lxc&lt;NN&gt;, пароль спросить у преподавателя).</li>
+<li>Написать программу для обмена текстовыми сообщениями между процессами, с использованием механизма разделяемой памяти. Обеспечить синхронизацию обмена с помощью механизма семафоров.</li>
+<li>Написать makefile, обеспечивающий трансляцию, установку, очистку и удаление программы (см. лаб. 4)</li>
+<li>Оттранслировать программу и установить её в каталог bin каталога work с помощью команды make.</li>
+<li>Очистить каталог work от вспомогательных файлов с помощью команды make.</li>
+<li>Запустить оттранслированную программу.</li>
+<li>Представить результаты выполнения работы преподавателю.</li>
+</ol>
+</div>
+<div class="section" id="id3">
+<h2>Ход работы<a class="headerlink" href="#id3" title="Permalink to this headline">¶</a></h2>
+<p>Запускаем наш контейнер из предыдущих работ:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">docker</span> <span class="n">run</span> <span class="o">-</span><span class="n">it</span> <span class="n">konstantinov</span><span class="o">/</span><span class="n">abc</span><span class="o">-</span><span class="n">linux</span><span class="o">-</span><span class="mi">4</span><span class="o">-</span><span class="mi">1</span>
+</pre></div>
+</div>
+<p>Далее пишем код, позволяющий реализовать наши семафоры для отношений клиент-сервер:</p>
+<div class="section" id="id4">
+<h3>Исходный код программы-сервера<a class="headerlink" href="#id4" title="Permalink to this headline">¶</a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1">#include &lt;stdio.h&gt;</span>
+<span class="c1">#include &lt;unistd.h&gt;</span>
+<span class="c1">#include &lt;string.h&gt;</span>
+<span class="c1">#include &lt;sys/ipc.h&gt;</span>
+<span class="c1">#include &lt;sys/sem.h&gt;</span>
+<span class="c1">#include &lt;sys/shm.h&gt;</span>
+
+
+<span class="c1">#define FTOKSEMPATH &quot;/tmp/lab06sem&quot; /*Путь к файлу, передаваемому ftok для набора семафоров */</span>
+<span class="c1">#define FTOKSHMPATH &quot;/tmp/lab06shm&quot; /*Путь к файлу, передаваемому ftok для разделяемого сегмента */</span>
+<span class="c1">#define FTOKID 1                    /*Идентификатор, передаваемый ftok */</span>
+
+<span class="c1">#define NUMSEMS 2                   /* Число семафоров в наборе */</span>
+<span class="c1">#define SIZEOFSHMSEG 512            /* Размер сегмента разделяемой памяти */</span>
+
+<span class="c1">#define NUMMSG 20                   /* Число принимаемых сообщений */</span>
+
+
+<span class="nb">int</span> <span class="n">main</span><span class="p">(</span><span class="nb">int</span> <span class="n">argc</span><span class="p">,</span> <span class="n">char</span> <span class="o">*</span><span class="n">argv</span><span class="p">[])</span>
+<span class="p">{</span>
+    <span class="nb">int</span> <span class="n">ret_val</span><span class="p">,</span> <span class="n">rc</span><span class="p">,</span> <span class="n">semid</span><span class="p">,</span> <span class="n">shmid</span><span class="p">,</span> <span class="n">i</span><span class="p">;</span>
+    <span class="n">key_t</span> <span class="n">semkey</span><span class="p">,</span> <span class="n">shmkey</span><span class="p">;</span>
+    <span class="n">void</span> <span class="o">*</span><span class="n">shm_address</span><span class="p">;</span>
+    <span class="n">struct</span> <span class="n">sembuf</span> <span class="n">operations</span><span class="p">[</span><span class="mi">2</span><span class="p">];</span>
+    <span class="n">struct</span> <span class="n">shmid_ds</span> <span class="n">shmid_struct</span><span class="p">;</span>
+    <span class="n">FILE</span> <span class="o">*</span><span class="n">fp</span><span class="p">;</span>
+
+    <span class="o">/*</span><span class="n">Создание</span> <span class="n">файлов</span> <span class="n">для</span> <span class="n">ftok</span><span class="o">*/</span>
+    <span class="n">fp</span><span class="o">=</span><span class="n">fopen</span><span class="p">(</span><span class="n">FTOKSEMPATH</span><span class="p">,</span><span class="s2">&quot;w&quot;</span><span class="p">);</span>
+    <span class="n">fclose</span><span class="p">(</span><span class="n">fp</span><span class="p">);</span>
+    <span class="n">fp</span><span class="o">=</span><span class="n">fopen</span><span class="p">(</span><span class="n">FTOKSHMPATH</span><span class="p">,</span><span class="s2">&quot;w&quot;</span><span class="p">);</span>
+    <span class="n">fclose</span><span class="p">(</span><span class="n">fp</span><span class="p">);</span>
+
+    <span class="o">/*</span><span class="n">Создание</span> <span class="n">IPC</span><span class="o">-</span><span class="n">ключей</span><span class="o">*/</span>
+    <span class="n">semkey</span> <span class="o">=</span> <span class="n">ftok</span><span class="p">(</span><span class="n">FTOKSEMPATH</span><span class="p">,</span><span class="n">FTOKID</span><span class="p">);</span>
+    <span class="k">if</span> <span class="p">(</span> <span class="n">semkey</span> <span class="o">==</span> <span class="p">(</span><span class="n">key_t</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span> <span class="p">)</span>
+    <span class="p">{</span>
+            <span class="n">printf</span><span class="p">(</span><span class="s2">&quot;Сервер: ошибка при выполнении </span><span class="si">%s</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span><span class="s2">&quot;semkey = ftok(FTOKSEMPATH,FTOKID);&quot;</span><span class="p">);</span>
+            <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="n">shmkey</span> <span class="o">=</span> <span class="n">ftok</span><span class="p">(</span><span class="n">FTOKSHMPATH</span><span class="p">,</span><span class="n">FTOKID</span><span class="p">);</span>
+    <span class="k">if</span> <span class="p">(</span> <span class="n">shmkey</span> <span class="o">==</span> <span class="p">(</span><span class="n">key_t</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span> <span class="p">)</span>
+    <span class="p">{</span>
+            <span class="n">printf</span><span class="p">(</span><span class="s2">&quot;Сервер: ошибка при выполнении </span><span class="si">%s</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span><span class="s2">&quot;shmkey = ftok(FTOKSHMPATH,FTOKID);&quot;</span><span class="p">);</span>
+            <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="o">/*</span><span class="n">Создание</span> <span class="n">набора</span> <span class="n">семафоров</span> <span class="n">с</span> <span class="n">помощью</span> <span class="n">IPC</span><span class="o">-</span><span class="n">ключей</span><span class="o">*/</span>
+    <span class="n">semid</span> <span class="o">=</span> <span class="n">semget</span><span class="p">(</span> <span class="n">semkey</span><span class="p">,</span> <span class="n">NUMSEMS</span><span class="p">,</span> <span class="mi">0666</span> <span class="o">|</span> <span class="n">IPC_CREAT</span> <span class="o">|</span> <span class="n">IPC_EXCL</span><span class="p">);</span>
+    <span class="k">if</span> <span class="p">(</span> <span class="n">semid</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span> <span class="p">)</span>
+    <span class="p">{</span>
+            <span class="n">printf</span><span class="p">(</span><span class="s2">&quot;Сервер: ошибка при выполнении </span><span class="si">%s</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span><span class="s2">&quot;semid = semget( semkey, NUMSEMS, 0666 | IPC_CREAT | IPC_EXCL);&quot;</span><span class="p">);</span>
+            <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="o">/*</span> <span class="n">В</span> <span class="n">данной</span> <span class="n">работе</span> <span class="n">будет</span> <span class="n">использоваться</span> <span class="mi">2</span> <span class="n">семафора</span><span class="o">*/</span>
+    <span class="o">/*</span> <span class="mi">1</span> <span class="n">в</span> <span class="n">первом</span> <span class="n">означает</span> <span class="n">что</span> <span class="n">облать</span> <span class="n">разделяемой</span> <span class="n">памяти</span> <span class="n">используется</span><span class="o">*/</span>
+    <span class="o">/*</span> <span class="mi">1</span> <span class="n">во</span> <span class="n">втором</span><span class="p">,</span> <span class="n">означает</span><span class="p">,</span> <span class="n">что</span> <span class="n">область</span> <span class="n">разделяемой</span> <span class="n">памяти</span> <span class="n">изменена</span> <span class="n">клиентом</span><span class="o">*/</span>
+
+    <span class="o">/*</span><span class="n">Инициализация</span> <span class="n">семафоров</span><span class="o">*/</span>
+    <span class="n">ret_val</span> <span class="o">=</span> <span class="n">semctl</span><span class="p">(</span> <span class="n">semid</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">SETVAL</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>
+    <span class="k">if</span><span class="p">(</span><span class="n">ret_val</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="p">{</span>
+            <span class="n">printf</span><span class="p">(</span><span class="s2">&quot;Сервер: ошибка при выполнении </span><span class="si">%s</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span><span class="s2">&quot;ret_val = semctl( semid, 0, SETVAL, 0);&quot;</span><span class="p">);</span>
+            <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="n">ret_val</span> <span class="o">=</span> <span class="n">semctl</span><span class="p">(</span> <span class="n">semid</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">SETVAL</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>
+    <span class="k">if</span><span class="p">(</span><span class="n">ret_val</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="p">{</span>
+            <span class="n">printf</span><span class="p">(</span><span class="s2">&quot;Сервер: ошибка при выполнении </span><span class="si">%s</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span><span class="s2">&quot;ret_val = semctl( semid, 1, SETVAL, 0);&quot;</span><span class="p">);</span>
+            <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="o">/*</span><span class="n">Создание</span> <span class="n">сегмента</span> <span class="n">разделяемой</span> <span class="n">памяти</span><span class="o">*/</span>
+    <span class="n">shmid</span> <span class="o">=</span> <span class="n">shmget</span><span class="p">(</span><span class="n">shmkey</span><span class="p">,</span> <span class="n">SIZEOFSHMSEG</span><span class="p">,</span> <span class="mi">0666</span> <span class="o">|</span> <span class="n">IPC_CREAT</span> <span class="o">|</span> <span class="n">IPC_EXCL</span><span class="p">);</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">shmid</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="p">{</span>
+            <span class="n">printf</span><span class="p">(</span><span class="s2">&quot;Сервер: ошибка при выполнении </span><span class="si">%s</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span><span class="s2">&quot;shmid = shmget(shmkey, SIZEOFSHMSEG, 0666 | IPC_CREAT | IPC_EXCL);&quot;</span><span class="p">);</span>
+            <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="o">/*</span><span class="n">Прикрепление</span> <span class="n">сегмента</span> <span class="n">разделяемой</span> <span class="n">памяти</span><span class="p">,</span> <span class="n">получение</span> <span class="n">адреса</span><span class="o">*/</span>
+    <span class="n">shm_address</span> <span class="o">=</span> <span class="n">shmat</span><span class="p">(</span><span class="n">shmid</span><span class="p">,</span> <span class="n">NULL</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>
+    <span class="k">if</span> <span class="p">(</span> <span class="n">shm_address</span><span class="o">==</span><span class="n">NULL</span> <span class="p">)</span>
+    <span class="p">{</span>
+            <span class="n">printf</span><span class="p">(</span><span class="s2">&quot;Сервер: ошибка при выполнении </span><span class="si">%s</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span><span class="s2">&quot;shm_address = shmat(shmid, NULL, 0);&quot;</span><span class="p">);</span>
+            <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="n">printf</span><span class="p">(</span><span class="s2">&quot;Сервер готов принимать сообщения от клиентов. Данный сервер настроен на прием </span><span class="si">%d</span><span class="s2"> сообщений</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">NUMMSG</span><span class="p">);</span>
+
+    <span class="o">/*</span><span class="n">Цикл</span> <span class="n">обработки</span> <span class="n">сообщений</span><span class="o">.</span> <span class="n">Выполняется</span> <span class="n">NUMMSG</span> <span class="n">раз</span><span class="o">*/</span>
+    <span class="k">for</span> <span class="p">(</span><span class="n">i</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="n">NUMMSG</span><span class="p">;</span> <span class="n">i</span><span class="o">++</span><span class="p">)</span>
+    <span class="p">{</span>
+            <span class="o">/*</span> <span class="n">Сервер</span> <span class="n">ожидает</span> <span class="n">появления</span> <span class="mi">1</span> <span class="n">на</span> <span class="n">втором</span> <span class="n">семафоре</span> <span class="p">(</span><span class="n">сегмент</span> <span class="n">разделяемой</span> <span class="n">памяти</span> <span class="n">изменен</span> <span class="n">клиентом</span><span class="p">)</span> <span class="o">*/</span>
+            <span class="o">/*</span> <span class="n">затем</span> <span class="n">выставляет</span> <span class="mi">1</span> <span class="n">на</span> <span class="n">первом</span> <span class="n">семафоре</span> <span class="p">(</span><span class="n">сегмент</span> <span class="n">занят</span><span class="p">)</span> <span class="o">*/</span>
+            <span class="o">/**/</span>
+            <span class="n">operations</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">sem_num</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+            <span class="n">operations</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">sem_op</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+            <span class="n">operations</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">sem_flg</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+
+            <span class="n">operations</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">sem_num</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+            <span class="n">operations</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">sem_op</span> <span class="o">=</span>  <span class="mi">1</span><span class="p">;</span>
+            <span class="n">operations</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">sem_flg</span> <span class="o">=</span> <span class="n">IPC_NOWAIT</span><span class="p">;</span>
+
+            <span class="n">ret_val</span> <span class="o">=</span> <span class="n">semop</span><span class="p">(</span> <span class="n">semid</span><span class="p">,</span> <span class="n">operations</span><span class="p">,</span> <span class="mi">2</span> <span class="p">);</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">ret_val</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="p">{</span>
+                    <span class="n">printf</span><span class="p">(</span><span class="s2">&quot;Сервер: ошибка при выполнении </span><span class="si">%s</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span><span class="s2">&quot;ret_val = semop( semid, operations, 2 );&quot;</span><span class="p">);</span>
+            <span class="p">}</span>
+
+
+            <span class="o">/*</span><span class="n">Обработать</span> <span class="n">сообщение</span><span class="p">,</span> <span class="n">полученное</span> <span class="n">от</span> <span class="n">клиента</span><span class="o">*/</span>
+            <span class="n">printf</span><span class="p">(</span><span class="s2">&quot;Получено сообщение : </span><span class="se">\&quot;</span><span class="si">%s</span><span class="se">\&quot;\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="p">(</span><span class="n">char</span> <span class="o">*</span><span class="p">)</span> <span class="n">shm_address</span><span class="p">);</span>
+
+            <span class="o">/*</span><span class="n">Установить</span> <span class="n">первый</span> <span class="n">семафор</span> <span class="n">в</span> <span class="mi">0</span> <span class="p">(</span><span class="n">сегмент</span> <span class="n">свободен</span><span class="p">)</span><span class="o">*/</span>
+            <span class="n">operations</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">sem_num</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+            <span class="n">operations</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">sem_op</span>  <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+            <span class="n">operations</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">sem_flg</span> <span class="o">=</span> <span class="n">IPC_NOWAIT</span><span class="p">;</span>
+
+            <span class="n">ret_val</span> <span class="o">=</span> <span class="n">semop</span><span class="p">(</span> <span class="n">semid</span><span class="p">,</span> <span class="n">operations</span><span class="p">,</span> <span class="mi">1</span> <span class="p">);</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">ret_val</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="p">{</span>
+                    <span class="n">printf</span><span class="p">(</span><span class="s2">&quot;Сервер: ошибка при выполнении </span><span class="si">%s</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span><span class="s2">&quot;ret_val = semop( semid, operations, 1 );&quot;</span><span class="p">);</span>
+                    <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+            <span class="p">}</span>
+
+    <span class="p">}</span> <span class="o">/*</span> <span class="n">Конец</span> <span class="n">цикла</span> <span class="n">обработки</span> <span class="n">сообщений</span> <span class="o">*/</span>
+
+    <span class="o">/*</span> <span class="n">Освобождние</span> <span class="n">набора</span> <span class="n">семафоров</span><span class="p">,</span>            <span class="o">*/</span>
+    <span class="o">/*</span> <span class="n">открепление</span> <span class="n">сегмента</span> <span class="n">разделяемой</span> <span class="n">памяти</span><span class="p">,</span> <span class="o">*/</span>
+    <span class="o">/*</span> <span class="n">его</span> <span class="n">освобождение</span><span class="o">.</span>                        <span class="o">*/</span>
+    <span class="n">ret_val</span> <span class="o">=</span> <span class="n">semctl</span><span class="p">(</span> <span class="n">semid</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">IPC_RMID</span> <span class="p">);</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">ret_val</span><span class="o">==-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="p">{</span>
+            <span class="n">printf</span><span class="p">(</span><span class="s2">&quot;Сервер: ошибка при выполнении </span><span class="si">%s</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span><span class="s2">&quot;ret_val = semctl( semid, 1, IPC_RMID );&quot;</span><span class="p">);</span>
+            <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="n">ret_val</span> <span class="o">=</span> <span class="n">shmdt</span><span class="p">(</span><span class="n">shm_address</span><span class="p">);</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">ret_val</span><span class="o">==-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="p">{</span>
+            <span class="n">printf</span><span class="p">(</span><span class="s2">&quot;Сервер: ошибка при выполнении </span><span class="si">%s</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span><span class="s2">&quot;ret_val = shmdt(shm_address);&quot;</span><span class="p">);</span>
+            <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="n">ret_val</span> <span class="o">=</span> <span class="n">shmctl</span><span class="p">(</span><span class="n">shmid</span><span class="p">,</span> <span class="n">IPC_RMID</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">shmid_struct</span><span class="p">);</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">ret_val</span><span class="o">==-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="p">{</span>
+            <span class="n">printf</span><span class="p">(</span><span class="s2">&quot;Сервер: ошибка при выполнении </span><span class="si">%s</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span><span class="s2">&quot;ret_val = shmctl(shmid, IPC_RMID, &amp;shmid_struct);&quot;</span><span class="p">);</span>
+            <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="o">/*</span><span class="n">Удаление</span> <span class="n">файлов</span> <span class="n">для</span> <span class="n">ftok</span><span class="o">*/</span>
+    <span class="n">unlink</span><span class="p">(</span><span class="n">FTOKSHMPATH</span><span class="p">);</span>
+    <span class="n">unlink</span><span class="p">(</span><span class="n">FTOKSEMPATH</span><span class="p">);</span>
+    <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="id5">
+<h3>Исходный код программы-клиента<a class="headerlink" href="#id5" title="Permalink to this headline">¶</a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1">#include &lt;stdio.h&gt;</span>
+<span class="c1">#include &lt;unistd.h&gt;</span>
+<span class="c1">#include &lt;string.h&gt;</span>
+<span class="c1">#include &lt;sys/ipc.h&gt;</span>
+<span class="c1">#include &lt;sys/sem.h&gt;</span>
+<span class="c1">#include &lt;sys/shm.h&gt;</span>
+<span class="c1">#include &lt;sys/types.h&gt;</span>
+
+<span class="c1">#define FTOKSEMPATH &quot;/tmp/lab06sem&quot; /*Путь к файлу, передаваемому ftok для набора семафоров */</span>
+<span class="c1">#define FTOKSHMPATH &quot;/tmp/lab06shm&quot; /*Путь к файлу, передаваемому ftok для разделяемого сегмента */</span>
+<span class="c1">#define FTOKID 1                    /*Идентификатор, передаваемый ftok */</span>
+
+<span class="c1">#define NUMSEMS 2                   /* Число семафоров в наборе */</span>
+<span class="c1">#define SIZEOFSHMSEG 512            /* Размер сегмента разделяемой памяти */</span>
+
+<span class="c1">#define NUMMSG 5                    /* Число передаваемых сообщений */</span>
+
+<span class="nb">int</span> <span class="n">main</span><span class="p">(</span><span class="nb">int</span> <span class="n">argc</span><span class="p">,</span> <span class="n">char</span> <span class="o">*</span><span class="n">argv</span><span class="p">[])</span>
+<span class="p">{</span>
+    <span class="n">struct</span> <span class="n">sembuf</span> <span class="n">operations</span><span class="p">[</span><span class="mi">3</span><span class="p">];</span>
+    <span class="n">void</span>         <span class="o">*</span><span class="n">shm_address</span><span class="p">;</span>
+    <span class="nb">int</span> <span class="n">i</span><span class="p">,</span> <span class="n">semid</span><span class="p">,</span> <span class="n">shmid</span><span class="p">,</span> <span class="n">ret_val</span><span class="p">;</span>
+    <span class="n">key_t</span> <span class="n">semkey</span><span class="p">,</span> <span class="n">shmkey</span><span class="p">;</span>
+
+    <span class="o">/*</span><span class="n">Создание</span> <span class="n">IPC</span><span class="o">-</span><span class="n">ключей</span><span class="o">*/</span>
+    <span class="n">semkey</span> <span class="o">=</span> <span class="n">ftok</span><span class="p">(</span><span class="n">FTOKSEMPATH</span><span class="p">,</span><span class="n">FTOKID</span><span class="p">);</span>
+    <span class="k">if</span> <span class="p">(</span> <span class="n">semkey</span> <span class="o">==</span> <span class="p">(</span><span class="n">key_t</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span> <span class="p">)</span>
+    <span class="p">{</span>
+            <span class="n">printf</span><span class="p">(</span><span class="s2">&quot;Клиент: ошибка при выполнении </span><span class="si">%s</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span><span class="s2">&quot;semkey = ftok(FTOKSEMPATH,FTOKID);&quot;</span><span class="p">);</span>
+            <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="n">shmkey</span> <span class="o">=</span> <span class="n">ftok</span><span class="p">(</span><span class="n">FTOKSHMPATH</span><span class="p">,</span><span class="n">FTOKID</span><span class="p">);</span>
+    <span class="k">if</span> <span class="p">(</span> <span class="n">shmkey</span> <span class="o">==</span> <span class="p">(</span><span class="n">key_t</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span> <span class="p">)</span>
+    <span class="p">{</span>
+            <span class="n">printf</span><span class="p">(</span><span class="s2">&quot;Клиент: ошибка при выполнении </span><span class="si">%s</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span><span class="s2">&quot;shmkey = ftok(FTOKSHMPATH,FTOKID);&quot;</span><span class="p">);</span>
+            <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="o">/*</span><span class="n">Получение</span> <span class="n">набора</span> <span class="n">семафоров</span> <span class="n">с</span> <span class="n">помощью</span> <span class="n">IPC</span><span class="o">-</span><span class="n">ключей</span><span class="o">*/</span>
+    <span class="n">semid</span> <span class="o">=</span> <span class="n">semget</span><span class="p">(</span> <span class="n">semkey</span><span class="p">,</span> <span class="n">NUMSEMS</span><span class="p">,</span> <span class="mi">0666</span><span class="p">);</span>
+    <span class="k">if</span> <span class="p">(</span> <span class="n">semid</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span> <span class="p">)</span>
+    <span class="p">{</span>
+            <span class="n">printf</span><span class="p">(</span><span class="s2">&quot;Клиент: ошибка при выполнении </span><span class="si">%s</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span><span class="s2">&quot;semid = semget( semkey, NUMSEMS, 0666);&quot;</span><span class="p">);</span>
+            <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="o">/*</span><span class="n">Получение</span> <span class="n">сегмента</span> <span class="n">разделяемой</span> <span class="n">памяти</span><span class="o">*/</span>
+    <span class="n">shmid</span> <span class="o">=</span> <span class="n">shmget</span><span class="p">(</span><span class="n">shmkey</span><span class="p">,</span> <span class="n">SIZEOFSHMSEG</span><span class="p">,</span> <span class="mi">0666</span><span class="p">);</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">shmid</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="p">{</span>
+            <span class="n">printf</span><span class="p">(</span><span class="s2">&quot;Клиент: ошибка при выполнении </span><span class="si">%s</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span><span class="s2">&quot;shmid = shmget(shmkey, SIZEOFSHMSEG, 0666);&quot;</span><span class="p">);</span>
+            <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="o">/*</span><span class="n">Прикрепление</span> <span class="n">сегмента</span> <span class="n">разделяемой</span> <span class="n">памяти</span><span class="p">,</span> <span class="n">получение</span> <span class="n">адреса</span><span class="o">*/</span>
+    <span class="n">shm_address</span> <span class="o">=</span> <span class="n">shmat</span><span class="p">(</span><span class="n">shmid</span><span class="p">,</span> <span class="n">NULL</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>
+    <span class="k">if</span> <span class="p">(</span> <span class="n">shm_address</span><span class="o">==</span><span class="n">NULL</span> <span class="p">)</span>
+    <span class="p">{</span>
+            <span class="n">printf</span><span class="p">(</span><span class="s2">&quot;Клиент: ошибка при выполнении </span><span class="si">%s</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span><span class="s2">&quot;shm_address = shmat(shmid, NULL, 0);&quot;</span><span class="p">);</span>
+            <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="o">/*</span><span class="n">Цикл</span> <span class="n">отправки</span> <span class="n">сообщений</span><span class="o">.</span> <span class="n">Выполняется</span> <span class="n">NUMMSG</span> <span class="n">раз</span><span class="o">*/</span>
+    <span class="k">for</span> <span class="p">(</span><span class="n">i</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="n">NUMMSG</span><span class="p">;</span> <span class="n">i</span><span class="o">++</span><span class="p">)</span>
+    <span class="p">{</span>
+            <span class="o">/*</span> <span class="n">Клиент</span> <span class="n">ожидает</span> <span class="n">появления</span> <span class="mi">0</span> <span class="n">на</span> <span class="n">первом</span> <span class="n">семафоре</span> <span class="p">(</span><span class="n">сегмент</span> <span class="n">разделяемой</span> <span class="n">памяти</span> <span class="n">свободен</span><span class="p">)</span> <span class="o">*/</span>
+            <span class="o">/*</span> <span class="n">и</span> <span class="mi">0</span> <span class="n">на</span> <span class="n">первом</span> <span class="n">семафоре</span> <span class="p">(</span><span class="n">сегмент</span> <span class="n">обработан</span> <span class="n">сервером</span><span class="p">)</span> <span class="o">*/</span>
+            <span class="o">/*</span> <span class="n">затем</span> <span class="n">выставляет</span> <span class="mi">1</span> <span class="n">на</span> <span class="n">первом</span> <span class="n">семафоре</span> <span class="p">(</span><span class="n">сегмент</span> <span class="n">занят</span><span class="p">)</span> <span class="o">*/</span>
+            <span class="o">/**/</span>
+            <span class="n">operations</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">sem_num</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+            <span class="n">operations</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">sem_op</span> <span class="o">=</span>  <span class="mi">0</span><span class="p">;</span>
+            <span class="n">operations</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">sem_flg</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+
+            <span class="n">operations</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">sem_num</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+            <span class="n">operations</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">sem_op</span> <span class="o">=</span>  <span class="mi">0</span><span class="p">;</span>
+            <span class="n">operations</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">sem_flg</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+
+            <span class="n">operations</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">sem_num</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+            <span class="n">operations</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">sem_op</span> <span class="o">=</span>  <span class="mi">1</span><span class="p">;</span>
+            <span class="n">operations</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">sem_flg</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+
+            <span class="n">ret_val</span> <span class="o">=</span> <span class="n">semop</span><span class="p">(</span> <span class="n">semid</span><span class="p">,</span> <span class="n">operations</span><span class="p">,</span> <span class="mi">3</span> <span class="p">);</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">ret_val</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="p">{</span>
+                    <span class="n">printf</span><span class="p">(</span><span class="s2">&quot;Клиент: ошибка при выполнении </span><span class="si">%s</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span><span class="s2">&quot;ret_val = semop( semid, operations, 2 );&quot;</span><span class="p">);</span>
+                    <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+            <span class="p">}</span>
+
+            <span class="n">snprintf</span><span class="p">(</span> <span class="p">(</span><span class="n">char</span> <span class="o">*</span><span class="p">)</span> <span class="n">shm_address</span><span class="p">,</span> <span class="n">SIZEOFSHMSEG</span><span class="p">,</span> <span class="s2">&quot;Message from klient with pid=</span><span class="si">%d</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">getpid</span><span class="p">()</span> <span class="p">);</span>
+            <span class="n">usleep</span><span class="p">(</span><span class="mi">200</span><span class="p">);</span>
+            <span class="o">/*</span> <span class="n">Установить</span> <span class="n">первый</span> <span class="n">семафор</span> <span class="n">в</span> <span class="mi">0</span> <span class="p">(</span><span class="n">сегмент</span> <span class="n">свободен</span><span class="p">),</span> <span class="o">*/</span>
+            <span class="o">/*</span> <span class="n">второй</span> <span class="n">семафор</span> <span class="n">в</span> <span class="mi">1</span> <span class="p">(</span><span class="n">сегмент</span> <span class="n">изменен</span><span class="p">)</span>              <span class="o">*/</span>
+            <span class="n">operations</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">sem_num</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+            <span class="n">operations</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">sem_op</span> <span class="o">=</span>  <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+            <span class="n">operations</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">sem_flg</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+
+            <span class="n">operations</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">sem_num</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+            <span class="n">operations</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">sem_op</span> <span class="o">=</span>  <span class="mi">1</span><span class="p">;</span>
+            <span class="n">operations</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">sem_flg</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+            <span class="n">ret_val</span> <span class="o">=</span> <span class="n">semop</span><span class="p">(</span> <span class="n">semid</span><span class="p">,</span> <span class="n">operations</span><span class="p">,</span> <span class="mi">2</span> <span class="p">);</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">ret_val</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="p">{</span>
+                    <span class="n">printf</span><span class="p">(</span><span class="s2">&quot;Клиент: ошибка при выполнении </span><span class="si">%s</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span><span class="s2">&quot;ret_val = semop( semid, operations, 2 );&quot;</span><span class="p">);</span>
+                    <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+            <span class="p">}</span>
+    <span class="p">}</span>  <span class="o">/*</span> <span class="n">Конец</span> <span class="n">цикла</span> <span class="n">отправки</span> <span class="n">сообщений</span> <span class="o">*/</span>
+    <span class="o">/*</span><span class="n">Открепление</span> <span class="n">сегмента</span> <span class="n">разделяемой</span> <span class="n">памяти</span><span class="o">.*/</span>
+    <span class="n">ret_val</span> <span class="o">=</span> <span class="n">shmdt</span><span class="p">(</span><span class="n">shm_address</span><span class="p">);</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">ret_val</span><span class="o">==-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="p">{</span>
+            <span class="n">printf</span><span class="p">(</span><span class="s2">&quot;Клиент: ошибка при выполнении </span><span class="si">%s</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span><span class="s2">&quot;ret_val = shmdt(shm_address);&quot;</span><span class="p">);</span>
+            <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<dl class="docutils">
+<dt>Пишем Makefile::</dt>
+<dd><dl class="first last docutils">
+<dt>klient,serv: klient.o serv.o</dt>
+<dd>gcc -g -o klient klient.c
+gcc -g -o serv serv.c</dd>
+<dt>clean:</dt>
+<dd>rm -f klient serv klient.o serv.o</dd>
+<dt>install:</dt>
+<dd>mkdir -p bin
+cp klient bin/klient
+cp serv bin/serv</dd>
+<dt>uninstall:</dt>
+<dd>rm -rf bin</dd>
+</dl>
+</dd>
+</dl>
+<p>Транслируем программу:</p>
+<div class="figure align-center" id="id7">
+<a class="reference internal image-reference" href="_images/3-1.png"><img alt="_images/3-1.png" src="_images/3-1.png" style="width: 803.0px; height: 110.0px;" /></a>
+<p class="caption"><span class="caption-text">Запуск Makefile</span></p>
+</div>
+<p>Устанавливаем:</p>
+<div class="figure align-center" id="id8">
+<a class="reference internal image-reference" href="_images/3-2.png"><img alt="_images/3-2.png" src="_images/3-2.png" style="width: 802.0px; height: 86.0px;" /></a>
+<p class="caption"><span class="caption-text">Установка программы</span></p>
+</div>
+<p>Очистка:</p>
+<div class="figure align-center" id="id9">
+<a class="reference internal image-reference" href="_images/3-3.png"><img alt="_images/3-3.png" src="_images/3-3.png" style="width: 800.0px; height: 58.0px;" /></a>
+<p class="caption"><span class="caption-text">Очистка папки</span></p>
+</div>
+<p>Далее мы запускаем оттранслированную программу:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>    $ cd bin
+    $ ./serv
+Сервер готов принимать сообщения от клиентов. Данный сервер настроен на прием 20 сообщений
+&amp; ./klient &amp; ./klient &amp; ./klient &amp; ./klient
+Получено сообщение : &quot;Message from klient with pid=33&quot;
+Получено сообщение : &quot;Message from klient with pid=34&quot;
+Получено сообщение : &quot;Message from klient with pid=32&quot;
+Получено сообщение : &quot;Message from klient with pid=33&quot;
+Получено сообщение : &quot;Message from klient with pid=35&quot;
+Получено сообщение : &quot;Message from klient with pid=34&quot;
+Получено сообщение : &quot;Message from klient with pid=32&quot;
+Получено сообщение : &quot;Message from klient with pid=33&quot;
+Получено сообщение : &quot;Message from klient with pid=35&quot;
+Получено сообщение : &quot;Message from klient with pid=34&quot;
+Получено сообщение : &quot;Message from klient with pid=32&quot;
+Получено сообщение : &quot;Message from klient with pid=33&quot;
+Получено сообщение : &quot;Message from klient with pid=35&quot;
+Получено сообщение : &quot;Message from klient with pid=34&quot;
+Получено сообщение : &quot;Message from klient with pid=32&quot;
+Получено сообщение : &quot;Message from klient with pid=33&quot;
+Получено сообщение : &quot;Message from klient with pid=35&quot;
+Получено сообщение : &quot;Message from klient with pid=34&quot;
+Получено сообщение : &quot;Message from klient with pid=32&quot;
+Получено сообщение : &quot;Message from klient with pid=35&quot;
+</pre></div>
+</div>
+</div>
+</div>
+<div class="section" id="id6">
+<h2>Выводы<a class="headerlink" href="#id6" title="Permalink to this headline">¶</a></h2>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Работа №6. Сообщения. Разделяемая память. Семафоры.</a><ul>
+<li><a class="reference internal" href="#id1">Цель работы</a></li>
+<li><a class="reference internal" href="#id2">Содержание  работы</a></li>
+<li><a class="reference internal" href="#id3">Ход работы</a><ul>
+<li><a class="reference internal" href="#id4">Исходный код программы-сервера</a></li>
+<li><a class="reference internal" href="#id5">Исходный код программы-клиента</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#id6">Выводы</a></li>
+</ul>
+</li>
+</ul>
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="lab5.html" title="previous chapter">Работа №5. Переменные окружения и файловые операции.</a></li>
+  </ul></li>
+</ul>
+</div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/lab6.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2018, Konstantinov_Pavel.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.7.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
+      
+      |
+      <a href="_sources/lab6.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
