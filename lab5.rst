@@ -54,6 +54,9 @@
 Также были изучены системные вызовы, связанные с файлами(open-close, read, write)
 
 	
+<<<<<<< HEAD
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
+=======
+>>>>>>> ad005028f975de70fce6fe8bf37ebbd5187561cb
