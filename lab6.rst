@@ -369,9 +369,8 @@
     rm -rf bin
 
 Транслируем программу:
-<<<<<<< HEAD
 
-.. figure:: _static/3-1.png
+.. figure:: https://github.com/Yohitman/labs/blob/master/_static/3-1.PNG?raw=true
 	:scale: 100%
 	:align: center
 	
@@ -379,7 +378,7 @@
 
 Устанавливаем:
 
-.. figure:: _static/3-2.png
+.. figure:: https://github.com/Yohitman/labs/blob/master/_static/3-2.PNG?raw=true
 	:scale: 100%
 	:align: center
     
@@ -387,7 +386,7 @@
 
 Очистка:
 
-.. figure:: _static/3-3.png
+.. figure:: https://github.com/Yohitman/labs/blob/master/_static/3-3.PNG?raw=true
 	:scale: 100%
 	:align: center
 
@@ -397,74 +396,29 @@
 
 	$ cd bin
 	$ ./serv
-    Сервер готов принимать сообщения от клиентов. Данный сервер настроен на прием 20 сообщений
-    & ./klient & ./klient & ./klient & ./klient
-    Получено сообщение : "Message from klient with pid=33"
-    Получено сообщение : "Message from klient with pid=34"
-    Получено сообщение : "Message from klient with pid=32"
-    Получено сообщение : "Message from klient with pid=33"
-    Получено сообщение : "Message from klient with pid=35"
-    Получено сообщение : "Message from klient with pid=34"
-    Получено сообщение : "Message from klient with pid=32"
-    Получено сообщение : "Message from klient with pid=33"
-    Получено сообщение : "Message from klient with pid=35"
-    Получено сообщение : "Message from klient with pid=34"
-    Получено сообщение : "Message from klient with pid=32"
-    Получено сообщение : "Message from klient with pid=33"
-    Получено сообщение : "Message from klient with pid=35"
-    Получено сообщение : "Message from klient with pid=34"
-    Получено сообщение : "Message from klient with pid=32"
-    Получено сообщение : "Message from klient with pid=33"
-    Получено сообщение : "Message from klient with pid=35"
-    Получено сообщение : "Message from klient with pid=34"
-    Получено сообщение : "Message from klient with pid=32"
-    Получено сообщение : "Message from klient with pid=35"
+	Сервер готов принимать сообщения от клиентов. Данный сервер настроен на прием 20 сообщений
+	& ./klient & ./klient & ./klient & ./klient
+	Получено сообщение : "Message from klient with pid=33"
+	Получено сообщение : "Message from klient with pid=34"
+	Получено сообщение : "Message from klient with pid=32"
+	Получено сообщение : "Message from klient with pid=33"
+	Получено сообщение : "Message from klient with pid=35"
+	Получено сообщение : "Message from klient with pid=34"
+	Получено сообщение : "Message from klient with pid=32"
+	Получено сообщение : "Message from klient with pid=33"
+	Получено сообщение : "Message from klient with pid=35"
+	Получено сообщение : "Message from klient with pid=34"
+	Получено сообщение : "Message from klient with pid=32"
+	Получено сообщение : "Message from klient with pid=33"
+	Получено сообщение : "Message from klient with pid=35"
+	Получено сообщение : "Message from klient with pid=34"
+	Получено сообщение : "Message from klient with pid=32"
+	Получено сообщение : "Message from klient with pid=33"
+	Получено сообщение : "Message from klient with pid=35"
+	Получено сообщение : "Message from klient with pid=34"
+	Получено сообщение : "Message from klient with pid=32"
+	Получено сообщение : "Message from klient with pid=35"
 
 Выводы
 ^^^^^^
-=======
-::
-
-    $ make install
-    cc     lab06client.c   -o lab06client
-    gcc -g -o lab06server lab06server.c
-    gcc -g -o lab06client lab06client.c
-    cp lab06server ./bin/lab06server
-    cp lab06client ./bin/lab06client
-
-Очищаем
-::
-
-    $ make clean
-    rm lab06server
-    rm lab06client
-    
-8.    Запустить оттранслированную программу.
-
-::
-
-    $ ./bin/lab06server 
-    Сервер готов принимать сообщения от клиентов. Данный сервер настроен на прием 20 сообщений
-    & ./bin/lab06client & ./bin/lab06client & ./bin/lab06client & ./bin/lab06client
-    Получено сообщение : "Message from client with pid=33"
-    Получено сообщение : "Message from client with pid=34"
-    Получено сообщение : "Message from client with pid=32"
-    Получено сообщение : "Message from client with pid=33"
-    Получено сообщение : "Message from client with pid=35"
-    Получено сообщение : "Message from client with pid=34"
-    Получено сообщение : "Message from client with pid=32"
-    Получено сообщение : "Message from client with pid=33"
-    Получено сообщение : "Message from client with pid=35"
-    Получено сообщение : "Message from client with pid=34"
-    Получено сообщение : "Message from client with pid=32"
-    Получено сообщение : "Message from client with pid=33"
-    Получено сообщение : "Message from client with pid=35"
-    Получено сообщение : "Message from client with pid=34"
-    Получено сообщение : "Message from client with pid=32"
-    Получено сообщение : "Message from client with pid=33"
-    Получено сообщение : "Message from client with pid=35"
-    Получено сообщение : "Message from client with pid=34"
-    Получено сообщение : "Message from client with pid=32"
-    Получено сообщение : "Message from client with pid=35"
-9.    Представить результаты выполнения работы преподавателю.
->>>>>>> ad005028f975de70fce6fe8bf37ebbd5187561cb
+Были исследованы разделяемая память и методы воздействия на нее(семафоры, блоки и т.д.)
